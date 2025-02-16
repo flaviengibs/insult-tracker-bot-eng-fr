@@ -2771,7 +2771,7 @@ function escapeRegExp(string) {
 }
 
 const escapedBannedWordsFrench = bannedWordsFrench.map(escapeRegExp);
-const escapedBannedWordsEnglish = bannedWordsEnglish.map(escaperegEx);
+const escapedBannedWordsEnglish = bannedWordsEnglish.map(escapeRegExp);
 
 function containsExactWord(messageContent, wordList) {
   return wordList.some(word => {
