@@ -1,4 +1,4 @@
-name: Node.js CI
+name: Node.js Workflow Bot
 
 on:
   schedule:
