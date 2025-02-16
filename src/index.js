@@ -2784,16 +2784,31 @@ function containsExactWord(messageContent, wordList) {
 
 client.on('messageCreate', message => {
     console.log("Message received : " + message.content);
-    if(containsExactWord(message.cleanContent, escapedBannedWordsFrench)) {
+    
+  if(containsExactWord(message.cleanContent, escapedBannedWordsFrench)) {
       console.log("Mot banni détecté");
       message.delete();
       console.log("Message supprimé");
       message.channel.send(`${message.author}, veuillez ne pas utiliser de termes offensants ou inappropriés. Votre message a été supprimé.`);
+    
     } else if (message.content.includes("enculé") || message.content.includes('encullé')){
       console.log("Le message contient enculé.");
       message.delete();
       console.log("Message supprimé")
       message.channel.send(`${message.author}, veuillez ne pas utiliser de termes offensants ou inappropriés. Votre message a été supprimé.`)
+    
+    } else if (containsExactWord(message.cleanContent, escapedBannedWordsEnglish)) {
+      console.log("Mot banni détecté");
+      message.delete();
+      console.log("Message supprimé");
+      message.channel.send(`${message.author}, don't use offensant or inappropriate terms. Your post has been deleted.`);
+      
+    } else if (containsExactWord(message.cleanContent, escapedBannedWordsEnglish) && containsExactWord(message.cleanContent, escapedBannedWordsFrench)) {
+      console.log("Mot banni détecté");
+      message.delete();
+      console.log("Message supprimé");
+      message.channel.send(`${message.author}, don't use offensant or inappropriate terms. Your post has been deleted.`);
+    
     } else {
       console.log("Pas de mot banni");
     }
@@ -2801,11 +2816,7 @@ client.on('messageCreate', message => {
 
 client.on('messageCreate', message => {
     console.log("Message received : " + message.content);
-    if(containsExactWord(message.cleanContent, escapedBannedWordsEnglish)) {
-      console.log("Mot banni détecté");
-      message.delete();
-      console.log("Message supprimé");
-      message.channel.send(`${message.author}, don't use offensant or inappropriate terms. Your post has been deleted.`);
+
     } else {
       console.log("Pas de mot banni");
     }
