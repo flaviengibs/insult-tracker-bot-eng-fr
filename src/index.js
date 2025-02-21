@@ -2759,7 +2759,7 @@ let bannedWordsEnglish = [
   "zoophile",
   "zoophilia",
   "🖕"
-]
+];
 
 
 client.once('ready', () => {
@@ -2795,7 +2795,7 @@ client.on('messageCreate', message => {
       console.log("Le message contient enculé.");
       message.delete();
       console.log("Message supprimé")
-      message.channel.send(`${message.author}, veuillez ne pas utiliser de termes offensants ou inappropriés. Votre message a été supprimé.`)
+      message.channel.send(`${message.author}, veuillez ne pas utiliser de termes offensants ou inappropriés. Votre message a été supprimé.`);
     
     } else if (containsExactWord(message.cleanContent, escapedBannedWordsEnglish)) {
       console.log("Mot banni détecté");
