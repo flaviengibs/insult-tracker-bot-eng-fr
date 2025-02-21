@@ -2809,7 +2809,7 @@ client.on('messageCreate', message => {
       console.log("Message supprimé");
       message.channel.send(`${message.author}, don't use offensant or inappropriate terms. Your post has been deleted.`);
     
-    } else {
+    )} else {
       console.log("Pas de mot banni");
     }
 }); 
