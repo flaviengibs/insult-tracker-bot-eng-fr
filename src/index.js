@@ -2809,17 +2809,11 @@ client.on('messageCreate', message => {
       console.log("Message supprimé");
       message.channel.send(`${message.author}, don't use offensant or inappropriate terms. Your post has been deleted.`);
     
-    )} else {
-      console.log("Pas de mot banni");
-    }
-}); 
-
-client.on('messageCreate', message => {
-    console.log("Message received : " + message.content);
-
     } else {
       console.log("Pas de mot banni");
     }
 }); 
+
+
 
 client.login(process.env.DISCORD_TOKEN);
