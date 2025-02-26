@@ -2819,9 +2819,12 @@ client.on('messageCreate', async(message) => {
             let muteRole = message.guild.roles.cache.find(role => role.name === "Muted");
             if (!muteRole) {
                 muteRole = await message.guild.roles.create({ name: "Muted", permissions: [] });
-                message.guild.channels.cache.forEach(channel => {
-                    channel.permissionOverwrites.create(muteRole, { SEND_MESSAGES: false });
-                });
+           message.guild.channels.cache.forEach(channel => {
+    channel.permissionOverwrites.create(muteRole, {
+        SEND_MESSAGES: false,
+        ADD_REACTIONS: false
+    }).catch(console.error);
+});
             }
             await member.roles.add(muteRole);
             message.channel.send(`${message.author} a été mute pour accumulation de 3 warns.`);
@@ -2853,9 +2856,12 @@ client.on('messageCreate', async(message) => {
             let muteRole = message.guild.roles.cache.find(role => role.name === "Muted");
             if (!muteRole) {
                 muteRole = await message.guild.roles.create({ name: "Muted", permissions: [] });
-                message.guild.channels.cache.forEach(channel => {
-                    channel.permissionOverwrites.create(muteRole, { SEND_MESSAGES: false });
-                });
+           message.guild.channels.cache.forEach(channel => {
+    channel.permissionOverwrites.create(muteRole, {
+        SEND_MESSAGES: false,
+        ADD_REACTIONS: false
+    }).catch(console.error);
+});
             }
             await member.roles.add(muteRole);
             message.channel.send(`${message.author} a été mute pour accumulation de 3 warns.`);
@@ -2887,9 +2893,12 @@ client.on('messageCreate', async(message) => {
             let muteRole = message.guild.roles.cache.find(role => role.name === "Muted");
             if (!muteRole) {
                 muteRole = await message.guild.roles.create({ name: "Muted", permissions: [] });
-                message.guild.channels.cache.forEach(channel => {
-                    channel.permissionOverwrites.create(muteRole, { SEND_MESSAGES: false });
-                });
+               message.guild.channels.cache.forEach(channel => {
+              channel.permissionOverwrites.create(muteRole, {
+                  SEND_MESSAGES: false,
+                  ADD_REACTIONS: false
+              }).catch(console.error);
+          });
             }
             await member.roles.add(muteRole);
             message.channel.send(`${message.author} a été mute pour accumulation de 3 warns.`);
