@@ -2790,7 +2790,7 @@ function containsExactWord(messageContent, wordList) {
 }
 
 
-client.on('messageCreate', message => {
+client.on('messageCreate', async(message) => {
     console.log("Message received : " + message.content);
   const userId = message.author.id;
         const guildId = message.guild.id;
