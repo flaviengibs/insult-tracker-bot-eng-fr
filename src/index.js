@@ -7,6 +7,15 @@ const client = new Client({
     GatewayIntentBits.GuildMembers
   ]
 });
+
+const warnsFile = "warns.json";
+// Chargement des warns
+let warns = {};
+if (fs.existsSync(warnsFile)) {
+    warns = JSON.parse(fs.readFileSync(warnsFile));
+}
+
+
 let bannedWordsFrench = ["abruti", "andouille", "anormal", "arriéré", "bâtard", "bouffon", "connard", "conne", "connasse", "con",
     "couillon", "crétin", "débile", "enfoiré", "encullé", "enculé", "espèce de", "imbécile", "idiot", "imbécile heureux",
     "imbécile profond", "merde", "merdeux", "nase", "naze", "nul", "pédé", "putain", 
@@ -2781,34 +2790,115 @@ function containsExactWord(messageContent, wordList) {
 }
 
 
-
 client.on('messageCreate', message => {
     console.log("Message received : " + message.content);
+  const userId = message.author.id;
+        const guildId = message.guild.id;
+
+
     
   if(containsExactWord(message.cleanContent, escapedBannedWordsFrench)) {
       console.log("Mot banni détecté");
       message.delete();
       console.log("Message supprimé");
+            if (!warns[guildId]) warns[guildId] = {};
+        if (!warns[guildId][userId]) warns[guildId][userId] = 0;
+
+        warns[guildId][userId]++;
+        fs.writeFileSync(warnsFile, JSON.stringify(warns, null, 2));
+
+        let warnCount = warns[guildId][userId];
       message.channel.send(`${message.author}, veuillez ne pas utiliser de termes offensants ou inappropriés. Votre message a été supprimé.`);
-    
-    } else if (message.content.includes("enculé") || message.content.includes('encullé')){
-      console.log("Le message contient enculé.");
-      message.delete();
-      console.log("Message supprimé")
-      message.channel.send(`${message.author}, veuillez ne pas utiliser de termes offensants ou inappropriés. Votre message a été supprimé.`);
-    
+      message.channel.send(`${message.author}, attention ! Tu as reçu un warn. Total : ${warnCount}`);
+        
+    let member = message.guild.members.cache.get(userId);
+        if (!member) return;
+
+        if (warnCount === 3) {
+            let muteRole = message.guild.roles.cache.find(role => role.name === "Muted");
+            if (!muteRole) {
+                muteRole = await message.guild.roles.create({ name: "Muted", permissions: [] });
+                message.guild.channels.cache.forEach(channel => {
+                    channel.permissionOverwrites.create(muteRole, { SEND_MESSAGES: false });
+                });
+            }
+            await member.roles.add(muteRole);
+            message.channel.send(`${message.author} a été mute pour accumulation de 3 warns.`);
+        } else if (warnCount === 6) {
+            await member.kick("Trop de warns");
+            message.channel.send(`${message.author} a été exclu pour accumulation de 6 warns.`);
+        } else if (warnCount === 10) {
+            await member.ban({ reason: "Trop de warns" });
+            message.channel.send(`${message.author} a été banni pour accumulation de 10 warns.`);
+        }
     } else if (containsExactWord(message.cleanContent, escapedBannedWordsEnglish)) {
       console.log("Mot banni détecté");
       message.delete();
       console.log("Message supprimé");
+            if (!warns[guildId]) warns[guildId] = {};
+        if (!warns[guildId][userId]) warns[guildId][userId] = 0;
+
+        warns[guildId][userId]++;
+        fs.writeFileSync(warnsFile, JSON.stringify(warns, null, 2));
+
+        let warnCount = warns[guildId][userId];
       message.channel.send(`${message.author}, don't use offensant or inappropriate terms. Your post has been deleted.`);
-      
+      message.channel.send(`${message.author}, you have been warned ! Total : ${warnCount}`);
+
+              let member = message.guild.members.cache.get(userId);
+        if (!member) return;
+
+        if (warnCount === 3) {
+            let muteRole = message.guild.roles.cache.find(role => role.name === "Muted");
+            if (!muteRole) {
+                muteRole = await message.guild.roles.create({ name: "Muted", permissions: [] });
+                message.guild.channels.cache.forEach(channel => {
+                    channel.permissionOverwrites.create(muteRole, { SEND_MESSAGES: false });
+                });
+            }
+            await member.roles.add(muteRole);
+            message.channel.send(`${message.author} a été mute pour accumulation de 3 warns.`);
+        } else if (warnCount === 6) {
+            await member.kick("Trop de warns");
+            message.channel.send(`${message.author} a été exclu pour accumulation de 6 warns.`);
+        } else if (warnCount === 10) {
+            await member.ban({ reason: "Trop de warns" });
+            message.channel.send(`${message.author} a été banni pour accumulation de 10 warns.`);
+        }
     } else if (containsExactWord(message.cleanContent, escapedBannedWordsEnglish) && containsExactWord(message.cleanContent, escapedBannedWordsFrench)) {
       console.log("Mot banni détecté");
       message.delete();
       console.log("Message supprimé");
+            if (!warns[guildId]) warns[guildId] = {};
+        if (!warns[guildId][userId]) warns[guildId][userId] = 0;
+
+        warns[guildId][userId]++;
+        fs.writeFileSync(warnsFile, JSON.stringify(warns, null, 2));
+
+        let warnCount = warns[guildId][userId];
       message.channel.send(`${message.author}, don't use offensant or inappropriate terms. Your post has been deleted.`);
-    
+      message.channel.send(`${message.author}, you have been warned ! Total : ${warnCount}`);
+
+            let member = message.guild.members.cache.get(userId);
+        if (!member) return;
+
+        if (warnCount === 3) {
+            let muteRole = message.guild.roles.cache.find(role => role.name === "Muted");
+            if (!muteRole) {
+                muteRole = await message.guild.roles.create({ name: "Muted", permissions: [] });
+                message.guild.channels.cache.forEach(channel => {
+                    channel.permissionOverwrites.create(muteRole, { SEND_MESSAGES: false });
+                });
+            }
+            await member.roles.add(muteRole);
+            message.channel.send(`${message.author} a été mute pour accumulation de 3 warns.`);
+        } else if (warnCount === 6) {
+            await member.kick("Trop de warns");
+            message.channel.send(`${message.author} a été exclu pour accumulation de 6 warns.`);
+        } else if (warnCount === 10) {
+            await member.ban({ reason: "Trop de warns" });
+            message.channel.send(`${message.author} a été banni pour accumulation de 10 warns.`);
+        }
     } else {
       console.log("Pas de mot banni");
     }
