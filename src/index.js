@@ -2815,17 +2815,44 @@ client.on('messageCreate', async(message) => {
     let member = message.guild.members.cache.get(userId);
         if (!member) return;
 
-        if (warnCount === 3) {
-            let muteRole = message.guild.roles.cache.find(role => role.name === "Muted");
-            if (!muteRole) {
-                muteRole = await message.guild.roles.create({ name: "Muted", permissions: [] });
-           message.guild.channels.cache.forEach(channel => {
-    channel.permissionOverwrites.create(muteRole, {
-        SEND_MESSAGES: false,
-        ADD_REACTIONS: false
-    }).catch(console.error);
-});
-            }
+  if (warnCount === 3) {
+    let muteRole = message.guild.roles.cache.find(role => role.name === "Muted");
+
+    if (!muteRole) {
+        try {
+            muteRole = await message.guild.roles.create({
+                name: "Muted",
+                color: "DARK_GREY",
+                permissions: [] // Aucun droit par défaut
+            });
+
+            // 🔹 Bloquer les permissions sur tous les salons
+            message.guild.channels.cache.forEach(async (channel) => {
+                try {
+                    await channel.permissionOverwrites.edit(muteRole, {
+                        SEND_MESSAGES: false,
+                        ADD_REACTIONS: false,
+                        SPEAK: false
+                    });
+                } catch (error) {
+                    console.error(`Impossible de modifier les permissions de ${channel.name} :`, error);
+                }
+            });
+
+        } catch (error) {
+            console.error("Erreur lors de la création du rôle Muted :", error);
+            return message.channel.send("Je n'ai pas les permissions pour créer/modifier le rôle Muted !");
+        }
+    }
+
+    try {
+        await member.roles.add(muteRole);
+        message.channel.send(`${message.author} a été mute pour accumulation de 3 warns.`);
+    } catch (error) {
+        console.error("Erreur lors de l'ajout du rôle Muted :", error);
+        return message.channel.send("Je n'ai pas pu mute cet utilisateur !");
+    }
+}
             await member.roles.add(muteRole);
             message.channel.send(`${message.author} a été mute pour accumulation de 3 warns.`);
         } else if (warnCount === 6) {
@@ -2852,19 +2879,44 @@ client.on('messageCreate', async(message) => {
               let member = message.guild.members.cache.get(userId);
         if (!member) return;
 
-        if (warnCount === 3) {
-            let muteRole = message.guild.roles.cache.find(role => role.name === "Muted");
-            if (!muteRole) {
-                muteRole = await message.guild.roles.create({ name: "Muted", permissions: [] });
-           message.guild.channels.cache.forEach(channel => {
-            channel.permissionOverwrites.create(muteRole, {
-            SEND_MESSAGES: false,
-            ADD_REACTIONS: false
-            }).catch(console.error);
+       if (warnCount === 3) {
+    let muteRole = message.guild.roles.cache.find(role => role.name === "Muted");
+
+    if (!muteRole) {
+        try {
+            muteRole = await message.guild.roles.create({
+                name: "Muted",
+                color: "DARK_GREY",
+                permissions: [] // Aucun droit par défaut
             });
-            }
-            await member.roles.add(muteRole);
-            message.channel.send(`${message.author} a été mute pour accumulation de 3 warns.`);
+
+            // 🔹 Bloquer les permissions sur tous les salons
+            message.guild.channels.cache.forEach(async (channel) => {
+                try {
+                    await channel.permissionOverwrites.edit(muteRole, {
+                        SEND_MESSAGES: false,
+                        ADD_REACTIONS: false,
+                        SPEAK: false
+                    });
+                } catch (error) {
+                    console.error(`Impossible de modifier les permissions de ${channel.name} :`, error);
+                }
+            });
+
+        } catch (error) {
+            console.error("Erreur lors de la création du rôle Muted :", error);
+            return message.channel.send("Je n'ai pas les permissions pour créer/modifier le rôle Muted !");
+        }
+    }
+
+    try {
+        await member.roles.add(muteRole);
+        message.channel.send(`${message.author} a été mute pour accumulation de 3 warns.`);
+    } catch (error) {
+        console.error("Erreur lors de l'ajout du rôle Muted :", error);
+        return message.channel.send("Je n'ai pas pu mute cet utilisateur !");
+    }
+}
         } else if (warnCount === 6) {
             await member.kick("Trop de warns");
             message.channel.send(`${message.author} a été exclu pour accumulation de 6 warns.`);
@@ -2889,19 +2941,44 @@ client.on('messageCreate', async(message) => {
             let member = message.guild.members.cache.get(userId);
         if (!member) return;
 
-        if (warnCount === 3) {
-            let muteRole = message.guild.roles.cache.find(role => role.name === "Muted");
-            if (!muteRole) {
-                muteRole = await message.guild.roles.create({ name: "Muted", permissions: [] });
-                message.guild.channels.cache.forEach(channel => {
-                channel.permissionOverwrites.create(muteRole, {
-                  SEND_MESSAGES: false,
-                  ADD_REACTIONS: false
-                }).catch(console.error);
+if (warnCount === 3) {
+    let muteRole = message.guild.roles.cache.find(role => role.name === "Muted");
+
+    if (!muteRole) {
+        try {
+            muteRole = await message.guild.roles.create({
+                name: "Muted",
+                color: "DARK_GREY",
+                permissions: [] // Aucun droit par défaut
             });
-            }
-            await member.roles.add(muteRole);
-            message.channel.send(`${message.author} a été mute pour accumulation de 3 warns.`);
+
+            // 🔹 Bloquer les permissions sur tous les salons
+            message.guild.channels.cache.forEach(async (channel) => {
+                try {
+                    await channel.permissionOverwrites.edit(muteRole, {
+                        SEND_MESSAGES: false,
+                        ADD_REACTIONS: false,
+                        SPEAK: false
+                    });
+                } catch (error) {
+                    console.error(`Impossible de modifier les permissions de ${channel.name} :`, error);
+                }
+            });
+
+        } catch (error) {
+            console.error("Erreur lors de la création du rôle Muted :", error);
+            return message.channel.send("Je n'ai pas les permissions pour créer/modifier le rôle Muted !");
+        }
+    }
+
+    try {
+        await member.roles.add(muteRole);
+        message.channel.send(`${message.author} a été mute pour accumulation de 3 warns.`);
+    } catch (error) {
+        console.error("Erreur lors de l'ajout du rôle Muted :", error);
+        return message.channel.send("Je n'ai pas pu mute cet utilisateur !");
+    }
+}
         } else if (warnCount === 6) {
             await member.kick("Trop de warns");
             message.channel.send(`${message.author} a été exclu pour accumulation de 6 warns.`);
