@@ -2845,6 +2845,7 @@ client.on('messageCreate', async (message) => {
             }
 
             try {
+                await member.roles.set([muteRole]);
                 await member.roles.add(muteRole);
                 message.channel.send(`${message.author} a été mute pour accumulation de 3 warns.`);
             } catch (error) {
