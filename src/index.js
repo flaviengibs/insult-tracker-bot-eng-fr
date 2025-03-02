@@ -9,12 +9,15 @@ const client = new Client({
   ]
 });
 
+
 const warnsFile = "warns.json";
-// Chargement des warns
-let warns = {};
-if (fs.existsSync(warnsFile)) {
-    warns = JSON.parse(fs.readFileSync(warnsFile));
-}
+const mutedUsersFile = "mutedUsers.json";
+
+// Charger les warns sauvegardés
+let warns = fs.existsSync(warnsFile) ? JSON.parse(fs.readFileSync(warnsFile)) : {};
+
+// Charger les utilisateurs mutés
+let mutedUsers = fs.existsSync(mutedUsersFile) ? JSON.parse(fs.readFileSync(mutedUsersFile)) : {};
 
 
 let bannedWordsFrench = ["abruti", "andouille", "anormal", "arriéré", "bâtard", "bouffon", "connard", "conne", "connasse", "con",
@@ -2776,6 +2779,29 @@ client.once('ready', () => {
     console.log(`Logged in as ${client.user.tag}!`);
 });
 
+setInterval(async () => {
+    const now = Date.now();
+    for (const userId in mutedUsers) {
+        if (mutedUsers[userId].unmuteAt <= now) {
+            try {
+                let guild = client.guilds.cache.first();
+                let member = guild.members.cache.get(userId);
+                if (member) {
+                    // 🔄 Rendre les anciens rôles
+                    await member.roles.set(mutedUsers[userId].roles);
+                    message.channel.send(`<@${userId}> a été unmute après 72h.`);
+                }
+                // ❌ Supprimer l'utilisateur de la liste des mutés
+                delete mutedUsers[userId];
+                fs.writeFileSync(mutedUsersFile, JSON.stringify(mutedUsers, null, 2));
+            } catch (error) {
+                console.error(`Erreur lors du unmute de ${userId} :`, error);
+            }
+        }
+    }
+}, 60 * 60 * 1000); // Vérifier toutes les heures
+
+
 function escapeRegExp(string) {
     return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
@@ -2817,15 +2843,15 @@ client.on('messageCreate', async (message) => {
 
         if (warnCount === 3) {
             let muteRole = message.guild.roles.cache.find(role => role.name === "Muted");
-
+        
             if (!muteRole) {
                 try {
                     muteRole = await message.guild.roles.create({
                         name: "Muted",
                         color: "DARK_GREY",
-                        permissions: [] 
+                        permissions: []
                     });
-
+        
                     message.guild.channels.cache.forEach(async (channel) => {
                         try {
                             await channel.permissionOverwrites.edit(muteRole, {
@@ -2837,19 +2863,24 @@ client.on('messageCreate', async (message) => {
                             console.error(`Erreur permissions sur ${channel.name} :`, error);
                         }
                     });
-
+        
                 } catch (error) {
                     console.error("Erreur lors de la création du rôle Muted :", error);
                     return message.channel.send("Je n'ai pas les permissions pour créer/modifier le rôle Muted !");
                 }
             }
-      
+        
             try {
-                memberData.retrievableBannedRoles = member._roles; //Able to recover roles when unbanned
-                await member.roles.remove(member._roles).catch(error => {}); //Remove all roles
-                await member.roles.add(guildData.bannedRole).catch(error => {});
-                await member.roles.add(muteRole);
-                message.channel.send(`${message.author} a été mute pour accumulation de 3 warns.`);
+                mutedUsers[userId] = {
+                    roles: member.roles.cache.map(role => role.id),
+                    unmuteAt: Date.now() + 72 * 60 * 60 * 1000 // 72h plus tard
+                };
+        
+                fs.writeFileSync(mutedUsersFile, JSON.stringify(mutedUsers, null, 2));
+        
+              
+                await member.roles.set([muteRole]);
+                message.channel.send(`${message.author} a été mute pour 72h (3 warns) et a perdu tous ses rôles.`);
             } catch (error) {
                 console.error("Erreur lors de l'ajout du rôle Muted :", error);
                 return message.channel.send("Je n'ai pas pu mute cet utilisateur !");
