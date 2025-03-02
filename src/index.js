@@ -9,16 +9,20 @@ const client = new Client({
   ]
 });
 
-
 const warnsFile = "warns.json";
 const mutedUsersFile = "mutedUsers.json";
 
+// Vérifier et créer les fichiers s'ils n'existent pas
+if (!fs.existsSync(warnsFile)) {
+    fs.writeFileSync(warnsFile, JSON.stringify({}, null, 2));
+}
+if (!fs.existsSync(mutedUsersFile)) {
+    fs.writeFileSync(mutedUsersFile, JSON.stringify({}, null, 2));
+}
+
 // Charger les warns sauvegardés
-let warns = fs.existsSync(warnsFile) ? JSON.parse(fs.readFileSync(warnsFile)) : {};
-
-// Charger les utilisateurs mutés
-let mutedUsers = fs.existsSync(mutedUsersFile) ? JSON.parse(fs.readFileSync(mutedUsersFile)) : {};
-
+let warns = JSON.parse(fs.readFileSync(warnsFile));
+let mutedUsers = JSON.parse(fs.readFileSync(mutedUsersFile));
 
 let bannedWordsFrench = ["abruti", "andouille", "anormal", "arriéré", "bâtard", "bouffon", "connard", "conne", "connasse", "con",
     "couillon", "crétin", "débile", "enfoiré", "encullé", "enculé", "espèce de", "imbécile", "idiot", "imbécile heureux",
