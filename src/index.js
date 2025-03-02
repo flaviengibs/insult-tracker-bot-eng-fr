@@ -2843,9 +2843,11 @@ client.on('messageCreate', async (message) => {
                     return message.channel.send("Je n'ai pas les permissions pour créer/modifier le rôle Muted !");
                 }
             }
-
+      
             try {
-                await member.roles.set([muteRole]);
+                memberData.retrievableBannedRoles = member._roles; //Able to recover roles when unbanned
+                await member.roles.remove(member._roles).catch(error => {}); //Remove all roles
+                await member.roles.add(guildData.bannedRole).catch(error => {});
                 await member.roles.add(muteRole);
                 message.channel.send(`${message.author} a été mute pour accumulation de 3 warns.`);
             } catch (error) {
