@@ -2811,18 +2811,20 @@ setInterval(async () => {
     }
 }, 60 * 60 * 1000); // Vérifier toutes les heures
 
+// Fonction d'échappement pour RegExp
 function escapeRegExp(string) {
     return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+// Générer les expressions régulières pour détecter les mots interdits
 const escapedBannedWordsFrench = bannedWordsFrench.map(escapeRegExp);
 const escapedBannedWordsEnglish = bannedWordsEnglish.map(escapeRegExp);
 
 function containsExactWord(messageContent, wordList) {
-  return wordList.some(word => {
-    const regex = new RegExp(\\b${escapeRegExp(word)}\\b, 'gi');
-    return regex.test(messageContent);
-  });
+    return wordList.some(word => {
+        const regex = new RegExp(`\\b${escapeRegExp(word)}\\b`, 'gi');
+        return regex.test(messageContent);
+    });
 }
 
 // Quand un message est envoyé
