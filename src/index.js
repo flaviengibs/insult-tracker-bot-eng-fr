@@ -1,28 +1,71 @@
-const { Client, GatewayIntentBits, Permissions } = require('discord.js');
+const { Client, Intents } = require('discord.js');
+const Database = require('better-sqlite3');
 const fs = require('fs');
-const client = new Client({
-  intents: [
-    GatewayIntentBits.Guilds,
-    GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.MessageContent,
-    GatewayIntentBits.GuildMembers
-  ]
+
+const db = new Database('database.sqlite');
+const client = new Client({ intents: [Intents.FLAGS.GUILDS, Intents.FLAGS.GUILD_MESSAGES, Intents.FLAGS.GUILD_MEMBERS] });
+
+client.once('ready', () => {
+    console.log(`Logged in as ${client.user.tag}!`);
 });
 
-const warnsFile = "warns.json";
-const mutedUsersFile = "mutedUsers.json";
+// 🔹 Création des tables si elles n'existent pas
+db.exec(`
+    CREATE TABLE IF NOT EXISTS warns (
+        userId TEXT PRIMARY KEY,
+        warnCount INTEGER DEFAULT 0
+    );
 
-// Vérifier et créer les fichiers s'ils n'existent pas
-if (!fs.existsSync(warnsFile)) {
-    fs.writeFileSync(warnsFile, JSON.stringify({}, null, 2));
-}
-if (!fs.existsSync(mutedUsersFile)) {
-    fs.writeFileSync(mutedUsersFile, JSON.stringify({}, null, 2));
+    CREATE TABLE IF NOT EXISTS mutedUsers (
+        userId TEXT PRIMARY KEY,
+        unmuteAt INTEGER,
+        roles TEXT
+    );
+`);
+
+// 🔹 Fonctions pour gérer les warns
+function addWarn(userId) {
+    db.prepare(`
+        INSERT INTO warns (userId, warnCount)
+        VALUES (?, 1)
+        ON CONFLICT(userId) DO UPDATE SET warnCount = warnCount + 1
+    `).run(userId);
 }
 
-// Charger les warns sauvegardés
-let warns = JSON.parse(fs.readFileSync(warnsFile));
-let mutedUsers = JSON.parse(fs.readFileSync(mutedUsersFile));
+function getWarns(userId) {
+    const row = db.prepare(`SELECT warnCount FROM warns WHERE userId = ?`).get(userId);
+    return row ? row.warnCount : 0;
+}
+
+// 🔹 Fonctions pour gérer les mutes
+function muteUser(userId, roles) {
+    const unmuteAt = Date.now() + 72 * 60 * 60 * 1000; // 72h plus tard
+    db.prepare(`
+        INSERT INTO mutedUsers (userId, unmuteAt, roles)
+        VALUES (?, ?, ?)
+        ON CONFLICT(userId) DO UPDATE SET unmuteAt = ?, roles = ?
+    `).run(userId, unmuteAt, JSON.stringify(roles), unmuteAt, JSON.stringify(roles));
+}
+
+function checkUnmutes(client) {
+    const now = Date.now();
+    const usersToUnmute = db.prepare(`SELECT * FROM mutedUsers WHERE unmuteAt <= ?`).all(now);
+
+    for (const user of usersToUnmute) {
+        let guild = client.guilds.cache.first();
+        let member = guild.members.cache.get(user.userId);
+        if (member) {
+            let roles = JSON.parse(user.roles);
+            member.roles.set(roles)
+                .then(() => console.log(`✅ ${user.userId} a été unmute.`))
+                .catch(err => console.error(`❌ Erreur lors du unmute de ${user.userId}:`, err));
+        }
+        db.prepare(`DELETE FROM mutedUsers WHERE userId = ?`).run(user.userId);
+    }
+}
+
+setInterval(() => checkUnmutes(client), 60 * 60 * 1000);
+
 
 let bannedWordsFrench = ["abruti", "andouille", "anormal", "arriéré", "bâtard", "bouffon", "connard", "conne", "connasse", "con",
     "couillon", "crétin", "débile", "enfoiré", "encullé", "enculé", "espèce de", "imbécile", "idiot", "imbécile heureux",
@@ -2820,76 +2863,60 @@ function escapeRegExp(string) {
 const escapedBannedWordsFrench = bannedWordsFrench.map(escapeRegExp);
 const escapedBannedWordsEnglish = bannedWordsEnglish.map(escapeRegExp);
 
+// 🔹 Fonction pour détecter les mots interdits
 function containsExactWord(messageContent, wordList) {
     return wordList.some(word => {
-        const regex = new RegExp(`\\b${escapeRegExp(word)}\\b`, 'gi');
+        const regex = new RegExp(`\\b${word}\\b`, 'gi');
         return regex.test(messageContent);
     });
 }
 
-// Quand un message est envoyé
+// 🔹 Gestion des messages
 client.on('messageCreate', async (message) => {
+    if (message.author.bot) return;
+    
     console.log("Message reçu : " + message.content);
+
     const userId = message.author.id;
     const guildId = message.guild.id;
 
-    if (containsExactWord(message.cleanContent, escapedBannedWordsFrench) ||
-        containsExactWord(message.cleanContent, escapedBannedWordsEnglish)) {
-        
-        console.log("Mot banni détecté");
+    if (containsExactWord(message.cleanContent, bannedWordsFrench) ||
+        containsExactWord(message.cleanContent, bannedWordsEnglish)) {
+
+        console.log("Mot interdit détecté !");
         message.delete();
-        console.log("Message supprimé");
+        console.log("Message supprimé.");
 
-        if (!warns[guildId]) warns[guildId] = {};
-        if (!warns[guildId][userId]) warns[guildId][userId] = 0;
+        addWarn(userId);
+        let warnCount = getWarns(userId);
 
-        warns[guildId][userId]++;
-        fs.writeFileSync(warnsFile, JSON.stringify(warns, null, 2));
+        message.channel.send(`${message.author}, attention ! Tu as reçu un avertissement. Total : ${warnCount}/10.`);
 
-        let warnCount = warns[guildId][userId];
-        message.channel.send(`${message.author}, attention ! Tu as reçu un warn. Total : ${warnCount}`);
-
-        let member = await message.guild.members.fetch(userId).catch(() => null);
+        let member = message.guild.members.cache.get(userId);
         if (!member) return;
 
         if (warnCount === 3) {
             let muteRole = message.guild.roles.cache.find(role => role.name === "Muted");
-        
+
             if (!muteRole) {
-                try {
-                    muteRole = await message.guild.roles.create({
-                        name: "Muted",
-                        color: "DARK_GREY",
-                        permissions: []
+                muteRole = await message.guild.roles.create({
+                    name: "Muted",
+                    color: "DARK_GREY",
+                    permissions: []
+                });
+
+                message.guild.channels.cache.forEach(async (channel) => {
+                    await channel.permissionOverwrites.edit(muteRole, {
+                        SEND_MESSAGES: false,
+                        ADD_REACTIONS: false,
+                        SPEAK: false
                     });
-        
-                    message.guild.channels.cache.forEach(async (channel) => {
-                        try {
-                            await channel.permissionOverwrites.edit(muteRole, {
-                                SEND_MESSAGES: false,
-                                ADD_REACTIONS: false,
-                                SPEAK: false
-                            });
-                        } catch (error) {
-                            console.error(`Erreur permissions sur ${channel.name} :`, error);
-                        }
-                    });
-        
-                } catch (error) {
-                    console.error("Erreur création du rôle Muted :", error);
-                    return message.channel.send("Je n'ai pas les permissions pour créer/modifier le rôle Muted !");
-                }
+                });
             }
-        
+
             try {
-                mutedUsers[userId] = {
-                    roles: member.roles.cache.map(role => role.id),
-                    unmuteAt: Date.now() + 72 * 60 * 60 * 1000, // 72h plus tard
-                    guildId: guildId
-                };
-
-                fs.writeFileSync(mutedUsersFile, JSON.stringify(mutedUsers, null, 2));
-
+                let oldRoles = member.roles.cache.map(role => role.id);
+                muteUser(userId, oldRoles);
                 await member.roles.set([muteRole]);
                 message.channel.send(`${message.author} a été mute pour 72h.`);
             } catch (error) {
@@ -2903,6 +2930,8 @@ client.on('messageCreate', async (message) => {
             await member.ban({ reason: "Trop de warns" });
             message.channel.send(`${message.author} a été banni pour accumulation de 10 warns.`);
         }
+    } else {
+        console.log("Pas de mot interdit.");
     }
 });
 
