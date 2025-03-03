@@ -2811,6 +2811,20 @@ setInterval(async () => {
     }
 }, 60 * 60 * 1000); // Vérifier toutes les heures
 
+function escapeRegExp(string) {
+    return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+const escapedBannedWordsFrench = bannedWordsFrench.map(escapeRegExp);
+const escapedBannedWordsEnglish = bannedWordsEnglish.map(escapeRegExp);
+
+function containsExactWord(messageContent, wordList) {
+  return wordList.some(word => {
+    const regex = new RegExp(\\b${escapeRegExp(word)}\\b, 'gi');
+    return regex.test(messageContent);
+  });
+}
+
 // Quand un message est envoyé
 client.on('messageCreate', async (message) => {
     console.log("Message reçu : " + message.content);
