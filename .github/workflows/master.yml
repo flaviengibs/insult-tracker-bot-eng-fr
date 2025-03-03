@@ -24,6 +24,12 @@ jobs:
       with:
         node-version: '18'
 
+    - name: load database if exists
+      uses: actions/download-artifact@v3
+      with:
+        name: database
+        path: .
+
     - name: Install dependencies
       run: npm install 
       working-directory: ./src
@@ -41,3 +47,9 @@ jobs:
       env:
         DISCORD_TOKEN: ${{ secrets.DISCORD_TOKEN }}
       working-directory: ./src
+
+    - name: save database
+      uses: actions/upload-artifact@v3
+      with:
+        name: database
+        path: database.sqlite
