@@ -3068,15 +3068,42 @@ client.on('interactionCreate', async (interaction) => {
     }
 
     if (interaction.commandName === 'setwarns') {
-        const count = interaction.options.getInteger('count');
+        const newCount = interaction.options.getInteger('count');
+        const oldCount = getWarns(target.id);
+
         db.prepare(`
             INSERT INTO warns (userId, warnCount)
             VALUES (?, ?)
             ON CONFLICT(userId) DO UPDATE SET warnCount = ?
-        `).run(target.id, count, count);
+        `).run(target.id, newCount, newCount);
+
+        const guild = interaction.guild;
+        const member = await guild.members.fetch(target.id).catch(() => null);
+
+        let punishmentMsg = '';
+
+        if (member && newCount >= 10 && oldCount < 10) {
+            try {
+                await member.ban({ reason: `Warns définis à ${newCount}/10 par ${interaction.user.tag}` });
+                punishmentMsg = isFr ? ' Il a été banni.' : ' They have been banned.';
+            } catch (e) {
+                punishmentMsg = isFr ? ' (impossible de bannir)' : ' (could not ban)';
+            }
+        } else if (member && newCount >= 6 && oldCount < 6) {
+            try {
+                await member.kick(`Warns définis à ${newCount}/10 par ${interaction.user.tag}`);
+                punishmentMsg = isFr ? ' Il a été expulsé.' : ' They have been kicked.';
+            } catch (e) {
+                punishmentMsg = isFr ? ' (impossible d\'expulser)' : ' (could not kick)';
+            }
+        } else if (member && newCount >= 3 && oldCount < 3) {
+            muteUser(target.id, guild.id, []);
+            punishmentMsg = isFr ? ' Il a été mute pour 24h.' : ' They have been muted for 24h.';
+        }
+
         const msg = isFr
-            ? `Les avertissements de <@${target.id}> ont été définis à ${count}/10 par <@${interaction.user.id}>.`
-            : `Warns for <@${target.id}> have been set to ${count}/10 by <@${interaction.user.id}>.`;
+            ? `Les avertissements de <@${target.id}> ont été définis à ${newCount}/10 par <@${interaction.user.id}>.${punishmentMsg}`
+            : `Warns for <@${target.id}> have been set to ${newCount}/10 by <@${interaction.user.id}>.${punishmentMsg}`;
         return interaction.reply({ content: msg });
     }
 });
