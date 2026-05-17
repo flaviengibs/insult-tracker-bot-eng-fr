@@ -2879,27 +2879,61 @@ client.once('ready', async () => {
         new SlashCommandBuilder()
             .setName('unmute')
             .setDescription('Unmute a muted user')
+            .setNameLocalizations({ fr: 'unmute' })
+            .setDescriptionLocalizations({ fr: 'Retirer le mute d\'un utilisateur' })
             .addUserOption(opt =>
                 opt.setName('user')
                     .setDescription('The user to unmute')
+                    .setNameLocalizations({ fr: 'utilisateur' })
+                    .setDescriptionLocalizations({ fr: 'L\'utilisateur à unmute' })
                     .setRequired(true)
             )
             .toJSON(),
         new SlashCommandBuilder()
             .setName('warns')
             .setDescription('Check the warn count of a user')
+            .setNameLocalizations({ fr: 'avertissements' })
+            .setDescriptionLocalizations({ fr: 'Voir le nombre d\'avertissements d\'un utilisateur' })
             .addUserOption(opt =>
                 opt.setName('user')
                     .setDescription('The user to check')
+                    .setNameLocalizations({ fr: 'utilisateur' })
+                    .setDescriptionLocalizations({ fr: 'L\'utilisateur à vérifier' })
                     .setRequired(true)
             )
             .toJSON(),
         new SlashCommandBuilder()
             .setName('clearwarns')
             .setDescription('Reset the warn count of a user')
+            .setNameLocalizations({ fr: 'reinitialiser-avertissements' })
+            .setDescriptionLocalizations({ fr: 'Remettre à zéro les avertissements d\'un utilisateur' })
             .addUserOption(opt =>
                 opt.setName('user')
                     .setDescription('The user to reset')
+                    .setNameLocalizations({ fr: 'utilisateur' })
+                    .setDescriptionLocalizations({ fr: 'L\'utilisateur à réinitialiser' })
+                    .setRequired(true)
+            )
+            .toJSON(),
+        new SlashCommandBuilder()
+            .setName('setwarns')
+            .setDescription('Set the warn count of a user (0-10)')
+            .setNameLocalizations({ fr: 'definir-avertissements' })
+            .setDescriptionLocalizations({ fr: 'Définir le nombre d\'avertissements d\'un utilisateur (0-10)' })
+            .addUserOption(opt =>
+                opt.setName('user')
+                    .setDescription('The user to update')
+                    .setNameLocalizations({ fr: 'utilisateur' })
+                    .setDescriptionLocalizations({ fr: 'L\'utilisateur à modifier' })
+                    .setRequired(true)
+            )
+            .addIntegerOption(opt =>
+                opt.setName('count')
+                    .setDescription('Number of warns (0-10)')
+                    .setNameLocalizations({ fr: 'nombre' })
+                    .setDescriptionLocalizations({ fr: 'Nombre d\'avertissements (0-10)' })
+                    .setMinValue(0)
+                    .setMaxValue(10)
                     .setRequired(true)
             )
             .toJSON(),
@@ -2983,31 +3017,59 @@ client.on('interactionCreate', async (interaction) => {
     // Only admins and moderators can use these commands
     if (!interaction.memberPermissions.has('Administrator') &&
         !interaction.memberPermissions.has('ModerateMembers')) {
-        return interaction.reply({ content: 'Tu n\'as pas la permission d\'utiliser cette commande.', ephemeral: true });
+        const msg = interaction.locale.startsWith('fr')
+            ? 'Tu n\'as pas la permission d\'utiliser cette commande.'
+            : 'You don\'t have permission to use this command.';
+        return interaction.reply({ content: msg, ephemeral: true });
     }
 
+    const isFr = interaction.locale.startsWith('fr');
+    const target = interaction.options.getUser('user');
+
     if (interaction.commandName === 'unmute') {
-        const target = interaction.options.getUser('user');
         const row = db.prepare(`SELECT * FROM mutedUsers WHERE userId = ?`).get(target.id);
 
         if (!row || row.unmuteAt <= Date.now()) {
-            return interaction.reply({ content: `<@${target.id}> n'est pas mute.`, ephemeral: true });
+            const msg = isFr
+                ? `<@${target.id}> n'est pas mute.`
+                : `<@${target.id}> is not muted.`;
+            return interaction.reply({ content: msg, ephemeral: true });
         }
 
         db.prepare(`DELETE FROM mutedUsers WHERE userId = ?`).run(target.id);
-        return interaction.reply({ content: `<@${target.id}> a ete unmute par <@${interaction.user.id}>.` });
+        const msg = isFr
+            ? `<@${target.id}> a été unmute par <@${interaction.user.id}>.`
+            : `<@${target.id}> has been unmuted by <@${interaction.user.id}>.`;
+        return interaction.reply({ content: msg });
     }
 
     if (interaction.commandName === 'warns') {
-        const target = interaction.options.getUser('user');
         const count = getWarns(target.id);
-        return interaction.reply({ content: `<@${target.id}> a ${count}/10 warns.`, ephemeral: true });
+        const msg = isFr
+            ? `<@${target.id}> a ${count}/10 avertissements.`
+            : `<@${target.id}> has ${count}/10 warns.`;
+        return interaction.reply({ content: msg, ephemeral: true });
     }
 
     if (interaction.commandName === 'clearwarns') {
-        const target = interaction.options.getUser('user');
         db.prepare(`DELETE FROM warns WHERE userId = ?`).run(target.id);
-        return interaction.reply({ content: `Les warns de <@${target.id}> ont ete reinitialises par <@${interaction.user.id}>.` });
+        const msg = isFr
+            ? `Les avertissements de <@${target.id}> ont été réinitialisés par <@${interaction.user.id}>.`
+            : `Warns for <@${target.id}> have been reset by <@${interaction.user.id}>.`;
+        return interaction.reply({ content: msg });
+    }
+
+    if (interaction.commandName === 'setwarns') {
+        const count = interaction.options.getInteger('count');
+        db.prepare(`
+            INSERT INTO warns (userId, warnCount)
+            VALUES (?, ?)
+            ON CONFLICT(userId) DO UPDATE SET warnCount = ?
+        `).run(target.id, count, count);
+        const msg = isFr
+            ? `Les avertissements de <@${target.id}> ont été définis à ${count}/10 par <@${interaction.user.id}>.`
+            : `Warns for <@${target.id}> have been set to ${count}/10 by <@${interaction.user.id}>.`;
+        return interaction.reply({ content: msg });
     }
 });
 
