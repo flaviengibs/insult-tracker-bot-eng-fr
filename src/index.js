@@ -2883,6 +2883,11 @@ client.on('messageCreate', async (message) => {
     const userId = message.author.id;
     const guildId = message.guild.id;
 
+    // Admins and moderators are fully exempt
+    const member = await message.guild.members.fetch(userId).catch(() => null);
+    if (!member) return;
+    if (member.permissions.has('Administrator') || member.permissions.has('ModerateMembers')) return;
+
     // If user is muted, silently delete everything they send
     if (isUserMuted(userId)) {
         await message.delete().catch(() => {});
@@ -2903,9 +2908,6 @@ client.on('messageCreate', async (message) => {
         const warnCount = getWarns(userId);
 
         await message.channel.send(`<@${userId}>, attention ! Tu as recu un avertissement. Total : ${warnCount}/10.`);
-
-        const member = await message.guild.members.fetch(userId).catch(() => null);
-        if (!member) return;
 
         if (warnCount === 3) {
             // Mute: store in DB, bot will delete all their messages for 24h
