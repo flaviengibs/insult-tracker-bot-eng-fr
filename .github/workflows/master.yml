@@ -1,12 +1,7 @@
 name: Node.js Workflow Bot
 
 on:
-  push:
-    branches:
-      - master
-  pull_request:
-    branches:
-      - master
+  workflow_dispatch: # disabled - bot is hosted on Railway
 
 jobs:
   build:
