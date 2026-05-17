@@ -41,13 +41,13 @@ function getWarns(userId) {
 }
 
 // Fonctions pour gerer les mutes (1 jour = 24h)
-function muteUser(userId, guildId, roles) {
+function muteUser(userId, guildId, _roles) {
     const unmuteAt = Date.now() + 24 * 60 * 60 * 1000; // 24h
     db.prepare(`
         INSERT INTO mutedUsers (userId, guildId, unmuteAt, roles)
-        VALUES (?, ?, ?, ?)
-        ON CONFLICT(userId) DO UPDATE SET guildId = ?, unmuteAt = ?, roles = ?
-    `).run(userId, guildId, unmuteAt, JSON.stringify(roles), guildId, unmuteAt, JSON.stringify(roles));
+        VALUES (?, ?, ?, '[]')
+        ON CONFLICT(userId) DO UPDATE SET guildId = ?, unmuteAt = ?
+    `).run(userId, guildId, unmuteAt, guildId, unmuteAt);
 }
 
 async function checkUnmutes() {
@@ -57,27 +57,18 @@ async function checkUnmutes() {
     for (const user of usersToUnmute) {
         try {
             const guild = await client.guilds.fetch(user.guildId).catch(() => null);
-            if (!guild) {
-                db.prepare(`DELETE FROM mutedUsers WHERE userId = ?`).run(user.userId);
-                continue;
-            }
-
-            const member = await guild.members.fetch(user.userId).catch(() => null);
-            if (member) {
-                const roles = JSON.parse(user.roles);
-                await member.roles.set(roles);
-                console.log(`Unmuted ${user.userId}.`);
-
+            if (guild) {
                 const defaultChannel = guild.systemChannel ||
                     guild.channels.cache.find(ch => ch.type === 0 && ch.permissionsFor(guild.members.me).has('SendMessages'));
                 if (defaultChannel) {
-                    defaultChannel.send(`<@${user.userId}> a ete unmute apres 24h.`);
+                    defaultChannel.send(`<@${user.userId}> n'est plus mute.`);
                 }
             }
         } catch (error) {
             console.error(`Erreur lors du unmute de ${user.userId}:`, error);
         }
         db.prepare(`DELETE FROM mutedUsers WHERE userId = ?`).run(user.userId);
+        console.log(`Unmuted ${user.userId}.`);
     }
 }
 
@@ -2837,7 +2828,15 @@ let bannedWordsEnglish = [
   "🖕"
 ];
 
-// Fonction d'echappement pour RegExp
+// Short/common words that would cause too many false positives if matched as substrings.
+// These are matched with word boundaries only.
+const strictMatchWords = new Set([
+    "nul", "con", "pd", "cul", "sex", "ass", "gay", "cum", "pis", "fag",
+    "nob", "wog", "wop", "mug", "bum", "tit", "nut", "poo", "cok", "fuk",
+    "sex", "xxx", "xx", "wtf", "stfu", "gtfo", "lsd", "pcp"
+]);
+
+// Escape special regex characters
 function escapeRegExp(string) {
     const chars = ["\\", ".", "*", "+", "?", "^", "$", "{", "}", "(", ")", "|", "[", "]"];
     let result = string;
@@ -2847,16 +2846,28 @@ function escapeRegExp(string) {
     return result;
 }
 
-// Generer les expressions regulieres pour detecter les mots interdits
-const escapedBannedWordsFrench = bannedWordsFrench.map(escapeRegExp);
-const escapedBannedWordsEnglish = bannedWordsEnglish.map(escapeRegExp);
-
-// Fonction pour detecter les mots interdits
-function containsExactWord(messageContent, wordList) {
+// Detect bad words:
+// - Short/common words: word-boundary match to avoid false positives
+// - Everything else: substring match so "hey2g1cLOL" catches "2g1c"
+function containsBadWord(messageContent, wordList) {
+    const content = messageContent.toLowerCase();
     return wordList.some(word => {
-        const regex = new RegExp(`\\b${word}\\b`, 'gi');
-        return regex.test(messageContent);
+        const escaped = escapeRegExp(word.toLowerCase());
+        if (strictMatchWords.has(word.toLowerCase())) {
+            // Word boundary match for short/ambiguous words
+            const regex = new RegExp(`\\b${escaped}\\b`, 'i');
+            return regex.test(content);
+        } else {
+            // Substring match — catches bad words embedded in other text
+            return content.includes(word.toLowerCase());
+        }
     });
+}
+
+// Check if a user is currently muted
+function isUserMuted(userId) {
+    const row = db.prepare(`SELECT unmuteAt FROM mutedUsers WHERE userId = ?`).get(userId);
+    return row && row.unmuteAt > Date.now();
 }
 
 client.once('ready', () => {
@@ -2869,13 +2880,20 @@ client.on('messageCreate', async (message) => {
     if (message.author.bot) return;
     if (!message.guild) return;
 
-    console.log("Message recu : " + message.content);
-
     const userId = message.author.id;
     const guildId = message.guild.id;
 
-    if (containsExactWord(message.cleanContent, escapedBannedWordsFrench) ||
-        containsExactWord(message.cleanContent, escapedBannedWordsEnglish)) {
+    // If user is muted, silently delete everything they send
+    if (isUserMuted(userId)) {
+        await message.delete().catch(() => {});
+        console.log(`Message supprime (utilisateur mute) : ${userId}`);
+        return;
+    }
+
+    console.log("Message recu : " + message.content);
+
+    if (containsBadWord(message.cleanContent, bannedWordsFrench) ||
+        containsBadWord(message.cleanContent, bannedWordsEnglish)) {
 
         console.log("Mot interdit detecte !");
         await message.delete().catch(() => {});
@@ -2890,36 +2908,9 @@ client.on('messageCreate', async (message) => {
         if (!member) return;
 
         if (warnCount === 3) {
-            // Mute for 1 day
-            let muteRole = message.guild.roles.cache.find(role => role.name === "Muted");
-
-            if (!muteRole) {
-                muteRole = await message.guild.roles.create({
-                    name: "Muted",
-                    color: 0x808080,
-                    permissions: []
-                });
-
-                for (const [, channel] of message.guild.channels.cache) {
-                    await channel.permissionOverwrites.edit(muteRole, {
-                        SendMessages: false,
-                        AddReactions: false,
-                        Speak: false
-                    }).catch(() => {});
-                }
-            }
-
-            try {
-                const oldRoles = member.roles.cache
-                    .filter(r => r.id !== message.guild.id) // exclude @everyone
-                    .map(r => r.id);
-                muteUser(userId, guildId, oldRoles);
-                await member.roles.set([muteRole]);
-                await message.channel.send(`<@${userId}> a ete mute pour 24h.`);
-            } catch (error) {
-                console.error("Erreur lors du mute :", error);
-                await message.channel.send("Je n'ai pas pu mute cet utilisateur !");
-            }
+            // Mute: store in DB, bot will delete all their messages for 24h
+            muteUser(userId, guildId, []);
+            await message.channel.send(`<@${userId}> a ete mute pour 24h. Tous ses messages seront supprimes.`);
         } else if (warnCount === 6) {
             try {
                 await member.kick("Trop de warns (6)");
