@@ -2917,14 +2917,14 @@ client.once('clientReady', async () => {
             .toJSON(),
         new SlashCommandBuilder()
             .setName('unban')
-            .setDescription('Unban a banned user by their ID')
+            .setDescription('Unban a banned user by their username')
             .setNameLocalizations({ fr: 'unban' })
-            .setDescriptionLocalizations({ fr: 'Débannir un utilisateur banni via son ID' })
+            .setDescriptionLocalizations({ fr: 'Débannir un utilisateur banni via son nom d\'utilisateur' })
             .addStringOption(opt =>
-                opt.setName('userid')
-                    .setDescription('The ID of the user to unban')
-                    .setNameLocalizations({ fr: 'id_utilisateur' })
-                    .setDescriptionLocalizations({ fr: 'L\'ID de l\'utilisateur à débannir' })
+                opt.setName('username')
+                    .setDescription('The username of the user to unban (e.g. john_doe)')
+                    .setNameLocalizations({ fr: 'nom_utilisateur' })
+                    .setDescriptionLocalizations({ fr: 'Le nom d\'utilisateur à débannir (ex: john_doe)' })
                     .setRequired(true)
             )
             .toJSON(),
@@ -3040,27 +3040,34 @@ client.on('interactionCreate', async (interaction) => {
 
     // /unban uses a string ID, not a user option — handle it separately
     if (interaction.commandName === 'unban') {
-        const userId = interaction.options.getString('userid').trim();
+        const username = interaction.options.getString('username').trim().toLowerCase();
 
-        if (!/^\d{17,20}$/.test(userId)) {
-            const msg = isFr
-                ? 'ID invalide. Un ID Discord est un nombre de 17 à 20 chiffres.'
-                : 'Invalid ID. A Discord ID is a 17-20 digit number.';
-            return interaction.reply({ content: msg, ephemeral: true });
-        }
+        await interaction.deferReply(); // fetching bans can take a moment
 
         try {
-            await interaction.guild.members.unban(userId);
-            db.prepare(`DELETE FROM warns WHERE userId = ?`).run(userId);
+            const bans = await interaction.guild.bans.fetch();
+            const ban = bans.find(b => b.user.username.toLowerCase() === username);
+
+            if (!ban) {
+                const msg = isFr
+                    ? `Aucun utilisateur banni avec le nom \`${username}\` trouvé.`
+                    : `No banned user with username \`${username}\` found.`;
+                return interaction.editReply({ content: msg });
+            }
+
+            await interaction.guild.members.unban(ban.user.id);
+            db.prepare(`DELETE FROM warns WHERE userId = ?`).run(ban.user.id);
+
             const msg = isFr
-                ? `L'utilisateur \`${userId}\` a été débanni par <@${interaction.user.id}>. Ses avertissements ont été réinitialisés.`
-                : `User \`${userId}\` has been unbanned by <@${interaction.user.id}>. Their warns have been reset.`;
-            return interaction.reply({ content: msg });
+                ? `\`${ban.user.username}\` a été débanni par <@${interaction.user.id}>. Ses avertissements ont été réinitialisés.`
+                : `\`${ban.user.username}\` has been unbanned by <@${interaction.user.id}>. Their warns have been reset.`;
+            return interaction.editReply({ content: msg });
         } catch (e) {
+            console.error('Unban error:', e);
             const msg = isFr
-                ? `Impossible de débannir \`${userId}\`. Vérifie que l'ID est correct et que l'utilisateur est bien banni.`
-                : `Could not unban \`${userId}\`. Make sure the ID is correct and the user is actually banned.`;
-            return interaction.reply({ content: msg, ephemeral: true });
+                ? 'Une erreur est survenue lors du déban.'
+                : 'An error occurred while trying to unban.';
+            return interaction.editReply({ content: msg });
         }
     }
 
