@@ -2916,6 +2916,19 @@ client.once('ready', async () => {
             )
             .toJSON(),
         new SlashCommandBuilder()
+            .setName('unban')
+            .setDescription('Unban a banned user by their ID')
+            .setNameLocalizations({ fr: 'unban' })
+            .setDescriptionLocalizations({ fr: 'Débannir un utilisateur banni via son ID' })
+            .addStringOption(opt =>
+                opt.setName('userid')
+                    .setDescription('The ID of the user to unban')
+                    .setNameLocalizations({ fr: 'id_utilisateur' })
+                    .setDescriptionLocalizations({ fr: 'L\'ID de l\'utilisateur à débannir' })
+                    .setRequired(true)
+            )
+            .toJSON(),
+        new SlashCommandBuilder()
             .setName('setwarns')
             .setDescription('Set the warn count of a user (0-10)')
             .setNameLocalizations({ fr: 'definir-avertissements' })
@@ -3065,6 +3078,33 @@ client.on('interactionCreate', async (interaction) => {
             ? `Les avertissements de <@${target.id}> ont été réinitialisés par <@${interaction.user.id}>.`
             : `Warns for <@${target.id}> have been reset by <@${interaction.user.id}>.`;
         return interaction.reply({ content: msg });
+    }
+
+    if (interaction.commandName === 'unban') {
+        const userId = interaction.options.getString('userid').trim();
+
+        // Validate it looks like a Discord snowflake ID
+        if (!/^\d{17,20}$/.test(userId)) {
+            const msg = isFr
+                ? 'ID invalide. Un ID Discord est un nombre de 17 à 20 chiffres.'
+                : 'Invalid ID. A Discord ID is a 17-20 digit number.';
+            return interaction.reply({ content: msg, ephemeral: true });
+        }
+
+        try {
+            await interaction.guild.members.unban(userId);
+            // Also reset their warns so they start fresh
+            db.prepare(`DELETE FROM warns WHERE userId = ?`).run(userId);
+            const msg = isFr
+                ? `L'utilisateur \`${userId}\` a été débanni par <@${interaction.user.id}>. Ses avertissements ont été réinitialisés.`
+                : `User \`${userId}\` has been unbanned by <@${interaction.user.id}>. Their warns have been reset.`;
+            return interaction.reply({ content: msg });
+        } catch (e) {
+            const msg = isFr
+                ? `Impossible de débannir \`${userId}\`. Vérifie que l'ID est correct et que l'utilisateur est bien banni.`
+                : `Could not unban \`${userId}\`. Make sure the ID is correct and the user is actually banned.`;
+            return interaction.reply({ content: msg, ephemeral: true });
+        }
     }
 
     if (interaction.commandName === 'setwarns') {
