@@ -1,4 +1,4 @@
-﻿const { Client, GatewayIntentBits } = require('discord.js');
+﻿const { Client, GatewayIntentBits, REST, Routes, SlashCommandBuilder } = require('discord.js');
 const Database = require('better-sqlite3');
 
 const db = new Database(process.env.DB_PATH || 'database.sqlite');
@@ -2870,9 +2870,50 @@ function isUserMuted(userId) {
     return row && row.unmuteAt > Date.now();
 }
 
-client.once('ready', () => {
+client.once('ready', async () => {
     console.log(`Coucou les p'tits lous, c'est moi, ${client.user.tag}!`);
     checkUnmutes(); // Check for pending unmutes on startup
+
+    // Register slash commands
+    const commands = [
+        new SlashCommandBuilder()
+            .setName('unmute')
+            .setDescription('Unmute a muted user')
+            .addUserOption(opt =>
+                opt.setName('user')
+                    .setDescription('The user to unmute')
+                    .setRequired(true)
+            )
+            .toJSON(),
+        new SlashCommandBuilder()
+            .setName('warns')
+            .setDescription('Check the warn count of a user')
+            .addUserOption(opt =>
+                opt.setName('user')
+                    .setDescription('The user to check')
+                    .setRequired(true)
+            )
+            .toJSON(),
+        new SlashCommandBuilder()
+            .setName('clearwarns')
+            .setDescription('Reset the warn count of a user')
+            .addUserOption(opt =>
+                opt.setName('user')
+                    .setDescription('The user to reset')
+                    .setRequired(true)
+            )
+            .toJSON(),
+    ];
+
+    const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
+    try {
+        // Register commands globally (can take up to 1h to propagate)
+        // For instant update during dev, use guild-specific: Routes.applicationGuildCommands(clientId, guildId)
+        await rest.put(Routes.applicationCommands(client.user.id), { body: commands });
+        console.log('Slash commands registered.');
+    } catch (err) {
+        console.error('Failed to register slash commands:', err);
+    }
 });
 
 // Gestion des messages
@@ -2932,6 +2973,41 @@ client.on('messageCreate', async (message) => {
         }
     } else {
         console.log("Pas de mot interdit.");
+    }
+});
+
+// Slash command handler
+client.on('interactionCreate', async (interaction) => {
+    if (!interaction.isChatInputCommand()) return;
+
+    // Only admins and moderators can use these commands
+    if (!interaction.memberPermissions.has('Administrator') &&
+        !interaction.memberPermissions.has('ModerateMembers')) {
+        return interaction.reply({ content: 'Tu n\'as pas la permission d\'utiliser cette commande.', ephemeral: true });
+    }
+
+    if (interaction.commandName === 'unmute') {
+        const target = interaction.options.getUser('user');
+        const row = db.prepare(`SELECT * FROM mutedUsers WHERE userId = ?`).get(target.id);
+
+        if (!row || row.unmuteAt <= Date.now()) {
+            return interaction.reply({ content: `<@${target.id}> n'est pas mute.`, ephemeral: true });
+        }
+
+        db.prepare(`DELETE FROM mutedUsers WHERE userId = ?`).run(target.id);
+        return interaction.reply({ content: `<@${target.id}> a ete unmute par <@${interaction.user.id}>.` });
+    }
+
+    if (interaction.commandName === 'warns') {
+        const target = interaction.options.getUser('user');
+        const count = getWarns(target.id);
+        return interaction.reply({ content: `<@${target.id}> a ${count}/10 warns.`, ephemeral: true });
+    }
+
+    if (interaction.commandName === 'clearwarns') {
+        const target = interaction.options.getUser('user');
+        db.prepare(`DELETE FROM warns WHERE userId = ?`).run(target.id);
+        return interaction.reply({ content: `Les warns de <@${target.id}> ont ete reinitialises par <@${interaction.user.id}>.` });
     }
 });
 
