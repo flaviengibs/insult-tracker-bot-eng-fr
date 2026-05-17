@@ -1,0 +1,17 @@
+{
+  "name": "le-traqueur-dinsultes-motive",
+  "version": "1.0.0",
+  "description": "Un bot Discord qui traque les insultes de manière motivée",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js"
+  },
+  "author": "flaviengibs",
+  "dependencies": {
+    "better-sqlite3": "^9.4.3",
+    "discord.js": "^14.13.0"
+  },
+  "engines": {
+    "node": ">=16.9.0"
+  }
+}
