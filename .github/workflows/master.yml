@@ -1,8 +1,6 @@
 name: Node.js Workflow Bot
 
 on:
-  schedule:
-    - cron: "0 */6 * * *" # This runs the workflow every 6 hours
   push:
     branches:
       - master
@@ -12,44 +10,38 @@ on:
 
 jobs:
   build:
-
     runs-on: ubuntu-latest
 
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v6
+      uses: actions/checkout@v4
 
     - name: Set up Node.js
-      uses: actions/setup-node@v6
+      uses: actions/setup-node@v4
       with:
         node-version: '18'
 
-    - name: load database if exists
+    - name: Load database if exists
       uses: actions/download-artifact@v4
       with:
         name: database
-        path: .
+        path: ./src
+      continue-on-error: true  # First run: no artifact yet, that's fine
 
     - name: Install dependencies
-      run: npm install 
-      working-directory: ./src
-      
-    - name: Install dotenv
-      run: npm install dotenv
+      run: npm install
       working-directory: ./src
 
-    - name: Create .env file
-      run: echo DISCORD_TOKEN=${{ secrets.DISCORD_TOKEN }} > .env
-      working-directory: ./src
-      
-    - name: run the bot
+    - name: Run the bot
       run: node index.js
       env:
         DISCORD_TOKEN: ${{ secrets.DISCORD_TOKEN }}
       working-directory: ./src
 
-    - name: save database
+    - name: Save database
+      if: always()
       uses: actions/upload-artifact@v4
       with:
         name: database
-        path: database.sqlite
+        path: src/database.sqlite
+        overwrite: true

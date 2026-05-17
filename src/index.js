@@ -1,15 +1,17 @@
-const { Client, Intents } = require('discord.js');
+﻿const { Client, GatewayIntentBits } = require('discord.js');
 const Database = require('better-sqlite3');
-const fs = require('fs');
 
 const db = new Database('database.sqlite');
-const client = new Client({ intents: [Intents.FLAGS.GUILDS, Intents.FLAGS.GUILD_MESSAGES, Intents.FLAGS.GUILD_MEMBERS] });
-
-client.once('ready', () => {
-    console.log(`Logged in as ${client.user.tag}!`);
+const client = new Client({
+    intents: [
+        GatewayIntentBits.Guilds,
+        GatewayIntentBits.GuildMessages,
+        GatewayIntentBits.GuildMembers,
+        GatewayIntentBits.MessageContent
+    ]
 });
 
-// 🔹 Création des tables si elles n'existent pas
+// Creation des tables si elles n'existent pas
 db.exec(`
     CREATE TABLE IF NOT EXISTS warns (
         userId TEXT PRIMARY KEY,
@@ -18,12 +20,13 @@ db.exec(`
 
     CREATE TABLE IF NOT EXISTS mutedUsers (
         userId TEXT PRIMARY KEY,
+        guildId TEXT,
         unmuteAt INTEGER,
         roles TEXT
     );
 `);
 
-// 🔹 Fonctions pour gérer les warns
+// Fonctions pour gerer les warns
 function addWarn(userId) {
     db.prepare(`
         INSERT INTO warns (userId, warnCount)
@@ -37,36 +40,49 @@ function getWarns(userId) {
     return row ? row.warnCount : 0;
 }
 
-// 🔹 Fonctions pour gérer les mutes
-function muteUser(userId, roles) {
-    const unmuteAt = Date.now() + 72 * 60 * 60 * 1000; // 72h plus tard
+// Fonctions pour gerer les mutes (1 jour = 24h)
+function muteUser(userId, guildId, roles) {
+    const unmuteAt = Date.now() + 24 * 60 * 60 * 1000; // 24h
     db.prepare(`
-        INSERT INTO mutedUsers (userId, unmuteAt, roles)
-        VALUES (?, ?, ?)
-        ON CONFLICT(userId) DO UPDATE SET unmuteAt = ?, roles = ?
-    `).run(userId, unmuteAt, JSON.stringify(roles), unmuteAt, JSON.stringify(roles));
+        INSERT INTO mutedUsers (userId, guildId, unmuteAt, roles)
+        VALUES (?, ?, ?, ?)
+        ON CONFLICT(userId) DO UPDATE SET guildId = ?, unmuteAt = ?, roles = ?
+    `).run(userId, guildId, unmuteAt, JSON.stringify(roles), guildId, unmuteAt, JSON.stringify(roles));
 }
 
-function checkUnmutes(client) {
+async function checkUnmutes() {
     const now = Date.now();
     const usersToUnmute = db.prepare(`SELECT * FROM mutedUsers WHERE unmuteAt <= ?`).all(now);
 
     for (const user of usersToUnmute) {
-        let guild = client.guilds.cache.first();
-        let member = guild.members.cache.get(user.userId);
-        if (member) {
-            let roles = JSON.parse(user.roles);
-            member.roles.set(roles)
-                .then(() => console.log(`✅ ${user.userId} a été unmute.`))
-                .catch(err => console.error(`❌ Erreur lors du unmute de ${user.userId}:`, err));
+        try {
+            const guild = await client.guilds.fetch(user.guildId).catch(() => null);
+            if (!guild) {
+                db.prepare(`DELETE FROM mutedUsers WHERE userId = ?`).run(user.userId);
+                continue;
+            }
+
+            const member = await guild.members.fetch(user.userId).catch(() => null);
+            if (member) {
+                const roles = JSON.parse(user.roles);
+                await member.roles.set(roles);
+                console.log(`Unmuted ${user.userId}.`);
+
+                const defaultChannel = guild.systemChannel ||
+                    guild.channels.cache.find(ch => ch.type === 0 && ch.permissionsFor(guild.members.me).has('SendMessages'));
+                if (defaultChannel) {
+                    defaultChannel.send(`<@${user.userId}> a ete unmute apres 24h.`);
+                }
+            }
+        } catch (error) {
+            console.error(`Erreur lors du unmute de ${user.userId}:`, error);
         }
         db.prepare(`DELETE FROM mutedUsers WHERE userId = ?`).run(user.userId);
     }
 }
 
-setInterval(() => checkUnmutes(client), 60 * 60 * 1000);
-
-
+// Verifier toutes les heures si des utilisateurs doivent etre unmute
+setInterval(() => checkUnmutes(), 60 * 60 * 1000);
 let bannedWordsFrench = ["abruti", "andouille", "anormal", "arriéré", "bâtard", "bouffon", "connard", "conne", "connasse", "con",
     "couillon", "crétin", "débile", "enfoiré", "encullé", "enculé", "espèce de", "imbécile", "idiot", "imbécile heureux",
     "imbécile profond", "merde", "merdeux", "nase", "naze", "nul", "pédé", "putain", 
@@ -2821,49 +2837,21 @@ let bannedWordsEnglish = [
   "🖕"
 ];
 
-
-client.once('ready', () => {
-    console.log(`Coucou les p'tits lous, c'est moi, ${client.user.tag}!`);
-});
-
-// Vérifie toutes les heures si des utilisateurs doivent être unmute
-setInterval(async () => {
-    const now = Date.now();
-    for (const userId in mutedUsers) {
-        if (mutedUsers[userId].unmuteAt <= now) {
-            try {
-                let guild = await client.guilds.fetch(mutedUsers[userId].guildId).catch(() => null);
-                if (!guild) continue;
-
-                let member = await guild.members.fetch(userId).catch(() => null);
-                if (member) {
-                    // 🔄 Rendre les anciens rôles
-                    await member.roles.set(mutedUsers[userId].roles);
-                    
-                    let defaultChannel = guild.systemChannel || guild.channels.cache.find(ch => ch.type === 0);
-                    if (defaultChannel) defaultChannel.send(`<@${userId}> a été unmute après 72h.`);
-                }
-
-                // ❌ Supprime l'utilisateur de la liste des mutés
-                delete mutedUsers[userId];
-                fs.writeFileSync(mutedUsersFile, JSON.stringify(mutedUsers, null, 2));
-            } catch (error) {
-                console.error(`Erreur lors du unmute de ${userId} :`, error);
-            }
-        }
-    }
-}, 60 * 60 * 1000); // Vérifier toutes les heures
-
-// Fonction d'échappement pour RegExp
+// Fonction d'echappement pour RegExp
 function escapeRegExp(string) {
-    return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const chars = ["\\", ".", "*", "+", "?", "^", "$", "{", "}", "(", ")", "|", "[", "]"];
+    let result = string;
+    for (const c of chars) {
+        result = result.split(c).join("\\" + c);
+    }
+    return result;
 }
 
-// Générer les expressions régulières pour détecter les mots interdits
+// Generer les expressions regulieres pour detecter les mots interdits
 const escapedBannedWordsFrench = bannedWordsFrench.map(escapeRegExp);
 const escapedBannedWordsEnglish = bannedWordsEnglish.map(escapeRegExp);
 
-// 🔹 Fonction pour détecter les mots interdits
+// Fonction pour detecter les mots interdits
 function containsExactWord(messageContent, wordList) {
     return wordList.some(word => {
         const regex = new RegExp(`\\b${word}\\b`, 'gi');
@@ -2871,64 +2859,83 @@ function containsExactWord(messageContent, wordList) {
     });
 }
 
-// 🔹 Gestion des messages
+client.once('ready', () => {
+    console.log(`Coucou les p'tits lous, c'est moi, ${client.user.tag}!`);
+    checkUnmutes(); // Check for pending unmutes on startup
+});
+
+// Gestion des messages
 client.on('messageCreate', async (message) => {
     if (message.author.bot) return;
-    
-    console.log("Message reçu : " + message.content);
+    if (!message.guild) return;
+
+    console.log("Message recu : " + message.content);
 
     const userId = message.author.id;
     const guildId = message.guild.id;
 
-    if (containsExactWord(message.cleanContent, bannedWordsFrench) ||
-        containsExactWord(message.cleanContent, bannedWordsEnglish)) {
+    if (containsExactWord(message.cleanContent, escapedBannedWordsFrench) ||
+        containsExactWord(message.cleanContent, escapedBannedWordsEnglish)) {
 
-        console.log("Mot interdit détecté !");
-        message.delete();
-        console.log("Message supprimé.");
+        console.log("Mot interdit detecte !");
+        await message.delete().catch(() => {});
+        console.log("Message supprime.");
 
         addWarn(userId);
-        let warnCount = getWarns(userId);
+        const warnCount = getWarns(userId);
 
-        message.channel.send(`${message.author}, attention ! Tu as reçu un avertissement. Total : ${warnCount}/10.`);
+        await message.channel.send(`<@${userId}>, attention ! Tu as recu un avertissement. Total : ${warnCount}/10.`);
 
-        let member = message.guild.members.cache.get(userId);
+        const member = await message.guild.members.fetch(userId).catch(() => null);
         if (!member) return;
 
         if (warnCount === 3) {
+            // Mute for 1 day
             let muteRole = message.guild.roles.cache.find(role => role.name === "Muted");
 
             if (!muteRole) {
                 muteRole = await message.guild.roles.create({
                     name: "Muted",
-                    color: "DARK_GREY",
+                    color: 0x808080,
                     permissions: []
                 });
 
-                message.guild.channels.cache.forEach(async (channel) => {
+                for (const [, channel] of message.guild.channels.cache) {
                     await channel.permissionOverwrites.edit(muteRole, {
-                        SEND_MESSAGES: false,
-                        ADD_REACTIONS: false,
-                        SPEAK: false
-                    });
-                });
+                        SendMessages: false,
+                        AddReactions: false,
+                        Speak: false
+                    }).catch(() => {});
+                }
             }
 
             try {
-                let oldRoles = member.roles.cache.map(role => role.id);
-                muteUser(userId, oldRoles);
+                const oldRoles = member.roles.cache
+                    .filter(r => r.id !== message.guild.id) // exclude @everyone
+                    .map(r => r.id);
+                muteUser(userId, guildId, oldRoles);
                 await member.roles.set([muteRole]);
-                message.channel.send(`${message.author} a été mute pour 72h.`);
+                await message.channel.send(`<@${userId}> a ete mute pour 24h.`);
             } catch (error) {
                 console.error("Erreur lors du mute :", error);
-                return message.channel.send("Je n'ai pas pu mute cet utilisateur !");
+                await message.channel.send("Je n'ai pas pu mute cet utilisateur !");
             }
         } else if (warnCount === 6) {
-            await member.kick("Trop de warns");
-            message.channel.send(`${message.author} a été exclu pour accumulation de 6 warns.`);
-        } else if (warnCount === 10) {
-            await member.ban({ reason: "Trop de warns" });
-            message.channel.send(`${message.author} a été banni pour accumulation de 10 warns.`);
+            try {
+                await member.kick("Trop de warns (6)");
+                await message.channel.send(`<@${userId}> a ete exclu pour accumulation de 6 warns.`);
+            } catch (error) {
+                console.error("Erreur lors du kick :", error);
+                await message.channel.send("Je n'ai pas pu exclure cet utilisateur !");
+            }
+        } else if (warnCount >= 10) {
+            try {
+                await member.ban({ reason: "Trop de warns (10)" });
+                await message.channel.send(`<@${userId}> a ete banni pour accumulation de 10 warns.`);
+            } catch (error) {
+                console.error("Erreur lors du ban :", error);
+                await message.channel.send("Je n'ai pas pu bannir cet utilisateur !");
+            }
         }
     } else {
         console.log("Pas de mot interdit.");
