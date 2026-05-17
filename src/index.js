@@ -3026,6 +3026,14 @@ client.on('interactionCreate', async (interaction) => {
     const isFr = interaction.locale.startsWith('fr');
     const target = interaction.options.getUser('user');
 
+    // Block bots from being targeted
+    if (target.bot) {
+        const msg = isFr
+            ? 'Tu ne peux pas cibler un bot.'
+            : 'You cannot target a bot.';
+        return interaction.reply({ content: msg, ephemeral: true });
+    }
+
     if (interaction.commandName === 'unmute') {
         const row = db.prepare(`SELECT * FROM mutedUsers WHERE userId = ?`).get(target.id);
 
