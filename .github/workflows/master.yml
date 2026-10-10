@@ -1,0 +1,45 @@
+# Le bot est hébergé sur Fly.io — ce workflow n'est plus utilisé pour l'hébergement.
+# Il reste disponible en workflow_dispatch pour des tests manuels ponctuels si besoin.
+
+name: Manual bot run (debug only)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+
+    - name: Load database if exists
+      uses: actions/download-artifact@v4
+      with:
+        name: database
+        path: ./src
+      continue-on-error: true
+
+    - name: Install dependencies
+      run: npm install
+      working-directory: ./src
+
+    - name: Run the bot
+      run: node index.js
+      env:
+        DISCORD_TOKEN: ${{ secrets.DISCORD_TOKEN }}
+      working-directory: ./src
+
+    - name: Save database
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: database
+        path: src/database.sqlite
+        overwrite: true
