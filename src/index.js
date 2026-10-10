@@ -2984,6 +2984,7 @@ client.once('clientReady', async () => {
 
 // Gestion des messages
 client.on('messageCreate', async (message) => {
+    console.log(`[DEBUG] messageCreate déclenché - auteur: ${message.author?.tag}, guild: ${message.guild?.id}`);
     if (message.author.bot) return;
     if (!message.guild) return;
 
